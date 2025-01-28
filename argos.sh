@@ -3,7 +3,7 @@
 # ARGOS - Main Menu
 ###############################################################################
 
-source "./utils.sh"
+source "./lib/argos_lib.sh"
 
 RED="\033[0;31m"
 GREEN="\033[0;32m"
@@ -11,27 +11,32 @@ YELLOW="\033[0;33m"
 CYAN="\033[0;36m"
 RESET="\033[0m"
 
-cat << "EOF"
+function banner_install() {
+  clear
+  cat << "EOF"
 
-     ___            
-    /   | 
-   / /| |  
-  / ___ / 
- /_/  |_\  
-        R G O S   
-1) Passive Info Gathering
-2) Active Scanning
-3) Web & API Analysis
-4) Network Analysis
-5) OSINT
-6) Wildcard Scanning
-7) Vulnerabilities
-8) Massive Recon
-9) Metasploit Automation
-10) ALL Recon
-11) Generate Report
-12) Exit
+ █████╗ ██████╗  ██████╗  ██████╗ ███████╗
+██╔══██╗██╔══██╗██╔════╝ ██╔═══██╗██╔════╝
+███████║██████╔╝██║  ███╗██║   ██║███████╗
+██╔══██║██╔══██╗██║   ██║██║   ██║╚════██║
+██║  ██║██║  ██║╚██████╔╝╚██████╔╝███████║
+╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝
+   A R G O S   I N S T A L L E R   v2.1
 EOF
+
+  echo -e "\n${CYAN}1. Passive Info Gathering"
+  echo "2. Active Scanning"
+  echo "3. Web & API Analysis"
+  echo "4. Network Analysis"
+  echo "5. OSINT"
+  echo "6. Wildcard Scanning"
+  echo "7. Vulnerabilities"
+  echo "8. Massive Recon"
+  echo "9. Metasploit Automation"
+  echo "10. ALL Recon"
+  echo "11. Generate Report"
+  echo -e "12. Exit${RESET}\n"
+}
 
 function run_module() {
   local mod="$1"
@@ -48,7 +53,8 @@ function run_module() {
 }
 
 while true; do
-  echo -ne "Select an option: "
+  banner_install
+  echo -ne "${YELLOW}Select an option: ${RESET}"
   read -r option
   case "$option" in
     1)
@@ -90,6 +96,9 @@ while true; do
       ;;
     *)
       echo -e "${YELLOW}[!] Invalid option. Please select a valid number.${RESET}"
+      sleep 1
       ;;
   esac
+  echo -e "\n${CYAN}Press Enter to continue...${RESET}"
+  read -r
 done

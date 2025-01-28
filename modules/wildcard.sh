@@ -3,7 +3,7 @@
 # ARGOS - Wildcard Scanning
 ###############################################################################
 
-source "$(dirname "$0")/../utils.sh"
+source "$(dirname "$0")/../lib/argos_lib.sh"
 
 RED="\033[0;31m"
 GREEN="\033[0;32m"
@@ -13,9 +13,9 @@ RESET="\033[0m"
 
 cat << "EOF"
  __        ___     
- \ \      / / (_)
-  \ \ /\ / /  | |
-   \ V  V /   | |  
+ \ \      / / 
+  \ \ /\ / /  
+   \ V  V /   
     \_/\_/    
           W I L D C A R D
 EOF

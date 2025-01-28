@@ -6,8 +6,7 @@
 set -e
 set -o pipefail
 
-source "$(dirname "$0")/../utils.sh"
-
+source "$(dirname "$0")/../lib/argos_lib.sh"
 # Renkler
 RED="\033[0;31m"
 GREEN="\033[0;32m"

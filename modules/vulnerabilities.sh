@@ -3,8 +3,7 @@
 # ARGOS - Vulnerabilities
 ###############################################################################
 
-source "$(dirname "$0")/../utils.sh"
-
+source "$(dirname "$0")/../lib/argos_lib.sh"
 
 
 RED="\033[0;31m"
