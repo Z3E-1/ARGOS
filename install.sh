@@ -1,111 +1,152 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ###############################################################################
-# ARGOS - Enhanced Install Script
-# Go, PATH ayarları ve bağımlılıklar düzeltildi
+# ARGOS - Enhanced Install Script v2.0
+# Geliştirmeler ve Düzeltmeler:
+# - Go 1.22 sürümüne güncellendi
+# - Tüm shell'ler için PATH güncellemesi
+# - Bağımlılık kontrolü eklendi
+# - Nuclei v3 kurulum desteği
+# - Python bağımlılıkları eklendi
+# - Hata yönetimi iyileştirildi
 ###############################################################################
 
-source ./utils.sh
+cd "$(dirname "$0")" || exit 1
 
+# Renk kodları
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 CYAN="\033[0;36m"
 RESET="\033[0m"
 
+# Hata yönetimi
+trap 'echo -e "${RED}[!] Hata oluştu: $BASH_COMMAND${RESET}"; exit 1' ERR
+
 function banner_install() {
+  clear
   cat << "EOF"
 
-     ___   ______  _________   ____  ____  ______
-    /   | / ____/ / ____/   | / __ \/ __ \/ ____/
-   / /| |/ /     / /   / /| |/ /_/ / / / / __/
-  / ___ / /___  / /___/ ___ / _, _/ /_/ / /___
- /_/  |_|\____/  \____/_/  |_/_/ |_|\____/_____/
-     A R G O S   I N S T A L L E R
-
+ █████╗ ██████╗  ██████╗  ██████╗ ███████╗
+██╔══██╗██╔══██╗██╔════╝ ██╔═══██╗██╔════╝
+███████║██████╔╝██║  ███╗██║   ██║███████╗
+██╔══██║██╔══██╗██║   ██║██║   ██║╚════██║
+██║  ██║██║  ██║╚██████╔╝╚██████╔╝███████║
+╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝
+   A R G O S   I N S T A L L E R   v2.0
 EOF
 }
 
+# Yardımcı fonksiyon
+run_command() {
+  echo -e "${CYAN}[+] Çalıştırılıyor: ${YELLOW}$1${RESET}"
+  if ! eval "$1"; then
+    echo -e "${RED}[!] Hata: Komut başarısız oldu - $1${RESET}"
+    return 1
+  fi
+}
+
+# Başlangıç kontrolleri
 banner_install
 
-echo -e "${CYAN}[+] Updating system packages...${RESET}"
-run_command "sudo apt-get update -y && sudo apt-get upgrade -y"
+# Temel bağımlılıklar
+echo -e "${CYAN}[+] Temel bağımlılıklar kontrol ediliyor...${RESET}"
+command -v curl >/dev/null || run_command "sudo apt install -y curl"
+command -v git >/dev/null || run_command "sudo apt install -y git"
+command -v python3 >/dev/null || run_command "sudo apt install -y python3 python3-pip"
+command -v pip3 >/dev/null || run_command "sudo apt install -y python3-pip"
 
-# Go kurulumu ve PATH ayarı
-if ! command -v go >/dev/null; then
-  echo -e "${CYAN}[+] Installing Go...${RESET}"
-  run_command "wget https://go.dev/dl/go1.20.linux-amd64.tar.gz -O /tmp/go.tar.gz"
-  run_command "sudo tar -C /usr/local -xzf /tmp/go.tar.gz"
-  echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.bashrc
+# Sistem güncellemeleri
+echo -e "${CYAN}[+] Sistem paketleri güncelleniyor...${RESET}"
+run_command "sudo apt update -y && sudo apt upgrade -y"
+
+# Go kurulumu
+GO_VERSION="1.22.4"
+if ! command -v go >/dev/null || [[ $(go version | awk '{print $3}') != "go${GO_VERSION}" ]]; then
+  echo -e "${CYAN}[+] Go ${GO_VERSION} kuruluyor...${RESET}"
+  run_command "sudo rm -rf /usr/local/go"
+  run_command "curl -fsSL https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz | sudo tar -xz -C /usr/local"
+  
+  # Tüm shell'ler için PATH güncellemesi
+  export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+  for SHELLRC in ~/.bashrc ~/.zshrc ~/.profile; do
+    if ! grep -q "/usr/local/go/bin" "$SHELLRC"; then
+      echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' | tee -a "$SHELLRC" >/dev/null
+    fi
+  done
   source ~/.bashrc
+else
+  echo -e "${GREEN}[✓] Go zaten güncel (v${GO_VERSION})${RESET}"
 fi
 
-# Araç listesi ve kurulum
+# Ana araç listesi
 declare -A tools=(
-  ["nmap"]="nmap"
-  ["dalfox"]="github.com/hahwul/dalfox/v2@latest"
-  ["whois"]="whois"
-  ["dig"]="dnsutils"
-  ["nslookup"]="dnsutils"
-  ["subfinder"]="subfinder"
-  ["amass"]="amass"
-  ["masscan"]="masscan"
-  ["httpx"]="httpx"
-  ["dirsearch"]="dirsearch"
-  ["sqlmap"]="sqlmap"
-  ["gau"]="gau"
-  ["hakrawler"]="hakrawler"
-  ["gf"]="gf"
-  ["enum4linux"]="enum4linux"
-  ["sslscan"]="sslscan"
-  ["nuclei"]="nuclei"
-  ["metasploit"]="metasploit-framework"
-  ["mailspoof"]="mailutils"
+  ["nmap"]="sudo apt install -y nmap"
+  ["dalfox"]="go install github.com/hahwul/dalfox/v2@latest"
+  ["subfinder"]="go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
+  ["amass"]="go install github.com/owasp/amass/v3/...@latest"
+  ["httpx"]="go install github.com/projectdiscovery/httpx/cmd/httpx@latest"
+  ["nuclei"]="go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+  ["katana"]="go install github.com/projectdiscovery/katana/cmd/katana@latest"
+  ["gau"]="go install github.com/lc/gau/v2/cmd/gau@latest"
+  ["gf"]="go install github.com/tomnomnom/gf@latest"
+  ["metasploit"]="curl https://raw.githubusercontent.com/rapid7/metasploit-omnibus/master/config/templates/metasploit-framework-wrappers/msfupdate.erb > msfinstall && chmod 755 msfinstall && ./msfinstall"
+  ["rustscan"]="sudo dpkg -i $(curl -s https://api.github.com/repos/RustScan/RustScan/releases/latest | grep 'browser_download_url.*amd64.deb' | cut -d '"' -f 4)"
+  ["wafw00f"]="pip3 install wafw00f"
+  ["linkfinder"]="pip3 install linkfinder"
+  ["retire"]="npm install -g retire"
 )
 
-for t in "${!tools[@]}"; do
-  if ! command -v "$t" >/dev/null; then
-    echo -e "${CYAN}[+] Installing $t...${RESET}"
-    if [[ ${tools[$t]} == github.com/* ]]; then
-      run_command "go install ${tools[$t]}"
-      tool_name=$(basename "${tools[$t]}")
-      run_command "sudo cp $HOME/go/bin/${tool_name} /usr/local/bin/"
+# Araç kurulum fonksiyonu
+install_tool() {
+  local tool=$1
+  local cmd=$2
+  
+  if ! command -v "$tool" >/dev/null; then
+    echo -e "${CYAN}[+] $tool kuruluyor...${RESET}"
+    if run_command "$cmd"; then
+      echo -e "${GREEN}[✓] $tool başarıyla kuruldu${RESET}"
     else
-      run_command "sudo apt-get install -y ${tools[$t]}"
+      echo -e "${RED}[!] $tool kurulumu başarısız oldu${RESET}"
     fi
   else
-    echo -e "${GREEN}[i] $t is already installed.${RESET}"
+    echo -e "${GREEN}[✓] $tool zaten kurulu${RESET}"
+  fi
+}
+
+# Ana araçları kur
+echo -e "\n${CYAN}### TEMEL ARAÇLAR KURULUYOR ###${RESET}"
+for tool in "${!tools[@]}"; do
+  install_tool "$tool" "${tools[$tool]}"
+done
+
+# Python bağımlılıkları
+echo -e "\n${CYAN}### PYTHON BAĞIMLILIKLARI KURULUYOR ###${RESET}"
+run_command "pip3 install jsbeautifier argparse requests"
+
+# Ek GitHub araçları
+echo -e "\n${CYAN}### EK GÜVENLİK ARAÇLARI KURULUYOR ###${RESET}"
+declare -A github_tools=(
+  ["SecretFinder"]="https://github.com/m4ll0k/SecretFinder.git"
+  ["GitDorker"]="https://github.com/obheda12/GitDorker.git"
+  ["403bypasser"]="https://github.com/yunemse48/403bypasser.git"
+)
+
+mkdir -p ~/tools
+for tool in "${!github_tools[@]}"; do
+  if [ ! -d ~/tools/"$tool" ]; then
+    run_command "git clone ${github_tools[$tool]} ~/tools/$tool"
+    if [ -f ~/tools/"$tool"/requirements.txt ]; then
+      run_command "pip3 install -r ~/tools/$tool/requirements.txt"
+    fi
+  else
+    echo -e "${GREEN}[✓] $tool zaten kurulu${RESET}"
   fi
 done
 
-# Optional GitHub tabanlı araçların kurulumu
-echo -ne "${CYAN}[?] Install extra GitHub-based tools? (SecretFinder, Corsy, GitDorker, etc.) y/N: ${RESET}"
-read -r EXTRA
-if [[ "$EXTRA" =~ ^[Yy]$ ]]; then
-  mkdir -p ~/tools
-  # SecretFinder
-  if [ ! -d ~/tools/SecretFinder ]; then
-    echo -e "${GREEN}[+] Cloning SecretFinder...${RESET}"
-    run_command "git clone https://github.com/m4ll0k/SecretFinder.git ~/tools/SecretFinder"
-  fi
-  # Corsy
-  if [ ! -d ~/tools/Corsy ]; then
-    echo -e "${GREEN}[+] Cloning Corsy...${RESET}"
-    run_command "git clone https://github.com/s0md3v/Corsy.git ~/tools/Corsy"
-  fi
-  # GitDorker
-  if [ ! -d ~/tools/GitDorker ]; then
-    echo -e "${GREEN}[+] Cloning GitDorker...${RESET}"
-    run_command "git clone https://github.com/obheda12/GitDorker.git ~/tools/GitDorker"
-  fi
-  # 403bypass
-  if [ ! -f ~/tools/403bypass/4xx.py ]; then
-    mkdir -p ~/tools/403bypass
-    echo -e "${GREEN}[+] Downloading 4xx.py...${RESET}"
-    run_command "wget -q -O ~/tools/403bypass/4xx.py https://raw.githubusercontent.com/Ekultek/404bypass/master/4xx.py"
-  fi
-fi
+# Son kontroller
+echo -e "\n${CYAN}### SON KONTROLLER ###${RESET}"
+run_command "go install -v"
+run_command "sudo updatedb"
 
-echo -e "${CYAN}[+] Cleaning up old dependencies...${RESET}"
-run_command "sudo apt autoremove -y"
-
-echo -e "${GREEN}[+] Installation complete!${RESET}"
+echo -e "\n${GREEN}[✓] Kurulum tamamlandı!${RESET}"
+echo -e "${CYAN}[!] Yeni terminal oturumu başlatmayı unutmayın!${RESET}"
 exit 0

