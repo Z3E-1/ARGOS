@@ -60,8 +60,7 @@ declare -A tools=(
   ["nikto"]="Web Server Scanner"
   ["wafw00f"]="WAF Detector"
   ["jsxss"]="JS XSS Scanner"
-  ["linkfinder"]="JS Endpoint Scanner"
-  ["retire"]="JS Vulnerability Checker"
+  
 )
 
 for tool in "${!tools[@]}"; do
@@ -98,9 +97,7 @@ js_analysis() {
     python3 -m linkfinder -i "$js_url" -o cli >> "$LOOT_DIR/js_endpoints.txt"
   done < "$JS_FILES"
   
-  # Retire.js ile Zafiyet Kontrolü
-  echo -e "\n${YELLOW}[*] JS Kütüphane Zafiyetleri${RESET}"
-  retire --path "$LOOT_DIR/js_files/" --outputformat json --outputpath "$LOOT_DIR/js_vulnerabilities.json"
+  # Retire.js ile olmadı başka bişey buluruz
   
   # JSXSS ile XSS Taraması
   echo -e "\n${YELLOW}[*] JS İçi XSS Taraması${RESET}"

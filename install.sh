@@ -84,6 +84,12 @@ declare -A tools=(
   ["metasploit"]="curl https://raw.githubusercontent.com/rapid7/metasploit-omnibus/master/config/templates/metasploit-framework-wrappers/msfupdate.erb > msfinstall && chmod 755 msfinstall && ./msfinstall"
   ["rustscan"]="sudo dpkg -i $(curl -s https://api.github.com/repos/RustScan/RustScan/releases/latest | grep 'browser_download_url.*amd64.deb' | cut -d '"' -f 4)"
   ["wafw00f"]="python3 -m pip install --user --break-system-packages wafw00f"
+  ["ffuf"]="go install github.com/ffuf/ffuf@latest"
+  ["wpscan"]="sudo gem install wpscan"
+  ["testssl.sh"]="git clone https://github.com/drwetter/testssl.sh.git ~/tools/testssl.sh"
+  ["gospider"]="go install github.com/jaeles-project/gospider@latest"
+  ["commix"]="git clone https://github.com/commixproject/commix.git ~/tools/commix"
+  ["jq"]="sudo apt install -y jq"
 )
 
 # Araç kurulum fonksiyonu

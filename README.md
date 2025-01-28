@@ -1,9 +1,11 @@
 # ARGOS
-dammy automation tool (still working on )
-installing 
+dammy automation tool (still working on)
+been developed on linux and works only on linux:)
+everywhere bugs :(
+ :::
 ```bash
-sudo apt-get install dos2unix
+İNSTALL: 
+
 git clone https://github.com/Z3E-1/ARGOS.git
 cd ARGOS
-find . -type f -exec dos2unix {} +
 ./install.sh
