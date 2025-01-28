@@ -44,6 +44,14 @@ else
   echo "<p>No .nmap files found.</p>" >> "$REPORT_NAME"
 fi
 
+# Nuclei results
+echo "<h2>Vulnerability Scans</h2>" >> "$REPORT_NAME"
+find "$LOOT_DIR" -type f \( -name "nuclei.txt" -o -name "xss.txt" -o -name "sqli.txt" \) | while read -r f; do
+  echo "<h3>$(basename "$f")</h3><pre>" >> "$REPORT_NAME"
+  cat "$f" >> "$REPORT_NAME"
+  echo "</pre>" >> "$REPORT_NAME"
+done
+
 echo "<p>End of Argos report.</p></body></html>" >> "$REPORT_NAME"
 
 echo -e "${GREEN}[+] Report saved as: $REPORT_NAME${RESET}"

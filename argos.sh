@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
 ###############################################################################
 # ARGOS - Main Orchestrator
-# Comprehensive Pentest / Recon Framework
+# Enhanced with error handling and input validation
 ###############################################################################
 
-RED="\033[0;31m"
-GREEN="\033[0;32m"
-YELLOW="\033[0;33m"
-CYAN="\033[0;36m"
-RESET="\033[0m"
+source ./utils.sh
+
+RED="\033[0;31m"; GREEN="\033[0;32m"; YELLOW="\033[0;33m"; CYAN="\033[0;36m"; RESET="\033[0m"
 
 function banner() {
   cat << "EOF"
-
-
-      A R G O S 
-
-(Use only on authorized targets. Check local laws and best practices.)
+      ___   ______  _________   ____  ____  ______
+     /   | / ____/ / ____/   | / __ \/ __ \/ ____/
+    / /| |/ /     / /   / /| |/ /_/ / / / / __/   
+   / ___ / /___  / /___/ ___ / _, _/ /_/ / /___   
+  /_/  |_\____/  \____/_/  |_/_/ |_|\____/_____/   
+         A R G O S   F R A M E W O R K
 EOF
 }
 
